@@ -1,15 +1,23 @@
 import logging
 
-from qtpy import API_NAME
-from vispy import app
-
-# set vispy application to the appropriate qt backend
-app.use_app(API_NAME)
-del app
-
 # set vispy logger to show warning and errors only
 vispy_logger = logging.getLogger('vispy')
 vispy_logger.setLevel(logging.WARNING)
+
+
+def use_qt_app_backend() -> None:
+    """Bind vispy's application backend to the installed Qt bindings.
+
+    This is deliberately *not* done at import time. Selecting the backend
+    requires importing ``qtpy``, which would make ``import napari._vispy``
+    pull in Qt globally and prevent any non-Qt frontend from using the vispy
+    canvas. Callers that need a Qt-backed vispy app (currently only
+    :class:`~napari._vispy.canvas.VispyCanvas`) invoke this explicitly.
+    """
+    from qtpy import API_NAME
+    from vispy import app
+
+    app.use_app(API_NAME)
 
 
 from napari._vispy.camera import VispyCamera

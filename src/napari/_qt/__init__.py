@@ -105,5 +105,13 @@ if tuple(int(x) for x in QtCore.__version__.split('.')[:3]) < (5, 12, 3):
 
 from napari._qt.qt_event_loop import get_qapp, quit_app, run
 from napari._qt.qt_main_window import Window
+from napari._vispy import use_qt_app_backend
+
+# Bind vispy's app backend to the Qt bindings validated above. This is done
+# here -- the entry point to the Qt frontend -- rather than at
+# ``napari._vispy`` import time, which would tie the vispy canvas to Qt for
+# every frontend. Importing the modules above does not construct any canvas,
+# so binding after them is still early enough.
+use_qt_app_backend()
 
 __all__ = ['Window', 'get_qapp', 'quit_app', 'run']
