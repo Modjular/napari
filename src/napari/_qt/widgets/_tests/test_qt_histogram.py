@@ -98,14 +98,14 @@ def test_qt_histogram_widget_updates_theme(qtbot):
             )
         )
 
-        assert widget.histogram_visual._lut_color == (
+        assert widget.canvas.histogram_visual._lut_color == (
             *(
                 np.array(light_theme.highlight.as_rgb_tuple(), dtype=float)
                 / 255
             ),
             0.95,
         )
-        assert widget.histogram_visual._axes_color == (
+        assert widget.canvas.histogram_visual._axes_color == (
             *(np.array(light_theme.text.as_rgb_tuple(), dtype=float) / 255),
             0.7,
         )
@@ -144,7 +144,7 @@ def test_qt_histogram_widget_updates_from_settings_theme(
             )
         )
 
-        assert widget.histogram_visual._lut_color == (
+        assert widget.canvas.histogram_visual._lut_color == (
             *(
                 np.array(light_theme.highlight.as_rgb_tuple(), dtype=float)
                 / 255
@@ -334,7 +334,7 @@ def test_histogram_visual_set_data_clear_path(qtbot):
     widget = QtHistogramWidget(layer)
     qtbot.addWidget(widget)
 
-    visual = widget.histogram_visual
+    visual = widget.canvas.histogram_visual
 
     # First set some data to get a non-empty state
     layer.histogram.enabled = True
@@ -363,7 +363,7 @@ def test_histogram_visual_update_lut_line_clims_equal(qtbot):
     widget = QtHistogramWidget(layer)
     qtbot.addWidget(widget)
 
-    visual = widget.histogram_visual
+    visual = widget.canvas.histogram_visual
     layer.histogram.enabled = True
     list(layer.histogram.compute())
 
@@ -387,7 +387,7 @@ def test_histogram_visual_destroy(qtbot):
     widget = QtHistogramWidget(layer)
     qtbot.addWidget(widget)
 
-    visual = widget.histogram_visual
+    visual = widget.canvas.histogram_visual
 
     # destroy should not crash
     visual.destroy()
@@ -401,7 +401,7 @@ def test_histogram_visual_update_bars_empty(qtbot):
     widget = QtHistogramWidget(layer)
     qtbot.addWidget(widget)
 
-    visual = widget.histogram_visual
+    visual = widget.canvas.histogram_visual
 
     # Call _update_bars directly with a single bin (len(bins) < 2)
     visual._update_bars(np.array([0.0]), np.array([5.0]))
@@ -418,7 +418,7 @@ def test_histogram_visual_update_bars_zero_range(qtbot):
     widget = QtHistogramWidget(layer)
     qtbot.addWidget(widget)
 
-    visual = widget.histogram_visual
+    visual = widget.canvas.histogram_visual
 
     # All bins have the same value → bin_range == 0 → should use bin_range = 1
     bins = np.array([5.0, 5.0, 5.0], dtype=np.float32)
@@ -551,8 +551,8 @@ def test_two_views_share_single_worker_and_both_animate(qtbot):
 
     # Count how many times each view's visual is actually redrawn.
     draws = {'a': 0, 'b': 0}
-    orig_a = view_a.histogram_visual.set_data
-    orig_b = view_b.histogram_visual.set_data
+    orig_a = view_a.canvas.histogram_visual.set_data
+    orig_b = view_b.canvas.histogram_visual.set_data
 
     def count_a(*args, **kwargs):
         draws['a'] += 1
@@ -562,8 +562,8 @@ def test_two_views_share_single_worker_and_both_animate(qtbot):
         draws['b'] += 1
         return orig_b(*args, **kwargs)
 
-    view_a.histogram_visual.set_data = count_a
-    view_b.histogram_visual.set_data = count_b
+    view_a.canvas.histogram_visual.set_data = count_a
+    view_b.canvas.histogram_visual.set_data = count_b
 
     hist = layer.histogram
     layer.histogram.enabled = True  # triggers the shared async compute

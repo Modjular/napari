@@ -6,10 +6,9 @@ from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 from qtpy.QtWidgets import QVBoxLayout, QWidget
-from vispy.scene import SceneCanvas
 
 from napari._qt.qthreading import GeneratorWorker, create_worker
-from napari._vispy.visuals.histogram import HistogramVisual
+from napari._vispy.histogram import VispyHistogramCanvas
 from napari.settings import get_settings
 from napari.utils.events.event_utils import disconnect_events
 from napari.utils.theme import get_theme
@@ -38,12 +37,8 @@ class QtHistogramWidget(QWidget):
 
     Attributes
     ----------
-    canvas : SceneCanvas
-        Vispy canvas containing the histogram visual.
-    view : ViewBox
-        Vispy view for the histogram.
-    histogram_visual : HistogramVisual
-        The vispy visual that renders the histogram.
+    canvas : VispyHistogramCanvas
+        The rendering canvas containing the histogram visual.
     """
 
     def __init__(
@@ -63,26 +58,12 @@ class QtHistogramWidget(QWidget):
         theme = get_theme(self._appearance.theme)
 
         # Create vispy canvas
-        self.canvas = SceneCanvas(
+        self.canvas = VispyHistogramCanvas(
             size=(_DEFAULT_CANVAS_WIDTH, _DEFAULT_CANVAS_HEIGHT),
             bgcolor=theme.canvas.as_hex(),
-            keys=None,
         )
         self.canvas.native.setParent(self)
         self.canvas.native.setMinimumHeight(_DEFAULT_CANVAS_MIN_HEIGHT)
-
-        from vispy.scene import ViewBox
-
-        self.view = ViewBox(parent=self.canvas.scene)
-        self.canvas.central_widget.add_widget(self.view)
-
-        self.histogram_visual = HistogramVisual()
-        self.histogram_visual.parent = self.view.scene
-
-        self.view.camera = 'panzoom'
-        self.view.camera.set_range(x=(0, 1), y=(0, 1), margin=0.01)
-        # Disable viewbox interaction to prevent accidental pan/zoom
-        self.view.interactive = False
 
         # Layout
         main_layout = QVBoxLayout()
@@ -240,7 +221,7 @@ class QtHistogramWidget(QWidget):
             theme_name = self._appearance.theme
         theme = get_theme(theme_name)
         self.canvas.bgcolor = theme.canvas.as_hex()
-        self.histogram_visual.set_style(
+        self.canvas.set_style(
             bar_color=self._layer_bar_color(),
             lut_color=self._theme_rgba(theme.highlight, 0.95),
             axes_color=self._theme_rgba(theme.text, 0.7),
@@ -264,7 +245,7 @@ class QtHistogramWidget(QWidget):
         self._updating = True
         try:
             if not self._histogram.enabled:
-                self.histogram_visual.set_data()
+                self.canvas.set_data()
                 self.canvas.update()
                 return
 
@@ -275,7 +256,7 @@ class QtHistogramWidget(QWidget):
             clims = self.layer.contrast_limits
             clims_range = self.layer.contrast_limits_range
 
-            self.histogram_visual.set_data(
+            self.canvas.set_data(
                 bin_edges=bin_edges,
                 counts=counts,
                 gamma=gamma,
@@ -315,7 +296,6 @@ class QtHistogramWidget(QWidget):
             # restart the load.
             owned_unfinished = self._histogram._dirty
 
-        self.histogram_visual.destroy()
         self.canvas.close()
 
         # Nudge any surviving view (e.g. the inline histogram when the popup
