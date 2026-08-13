@@ -55,6 +55,20 @@ class WindowProtocol(Protocol):
 
     def close(self) -> None: ...
 
+    def update_console(self, variables: Any) -> None: ...
+
+    def toggle_console_visibility(self) -> None: ...
+
+    def open_paths(
+        self,
+        paths: Sequence[str | Path],
+        *,
+        stack: bool | list[list[str | Path]],
+        plugin: str | None = None,
+        layer_type: str | None = None,
+        **kwargs: Any,
+    ) -> None: ...
+
     def add_plugin_dock_widget(
         self,
         plugin_name: str,

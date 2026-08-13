@@ -496,7 +496,9 @@ class QtViewer(QSplitter):
             else:
                 vlist = variables
             vdict = {}
-            cf = sys._getframe(2)
+            # 3 frames up: add_to_console_backlog -> Window.update_console
+            # -> Viewer.update_console -> the caller whose locals we want.
+            cf = sys._getframe(3)
             for name in vlist:
                 try:
                     vdict[name] = eval(name, cf.f_globals, cf.f_locals)

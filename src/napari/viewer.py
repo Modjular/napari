@@ -115,10 +115,7 @@ class Viewer(ViewerModel):
             give (list/tuple/str) then the variable values looked up in the
             callers frame.
         """
-        if self.window._qt_viewer._console is None:
-            self.window._qt_viewer.add_to_console_backlog(variables)
-            return
-        self.window._qt_viewer.console.push(variables)
+        self.window.update_console(variables)
 
     def export_figure(
         self,
@@ -209,11 +206,7 @@ class Viewer(ViewerModel):
             The list containing all the screenshots.
         """
         # Check to see if roi has shape (n,2,2)
-        screenshot_list = self.window._qt_viewer.export_rois(
-            rois, paths=paths, scale=scale
-        )
-
-        return screenshot_list
+        return self.window.export_rois(rois, paths=paths, scale=scale)
 
     def screenshot(
         self,

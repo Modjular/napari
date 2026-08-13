@@ -291,7 +291,7 @@ def _build_viewer() -> Viewer:
         )
         args.stack = True
     try:
-        viewer._window._qt_viewer._qt_open(
+        viewer.window.open_paths(
             args.paths,
             stack=args.stack,
             plugin=args.plugin,

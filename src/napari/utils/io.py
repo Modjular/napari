@@ -271,10 +271,4 @@ def _add_variables_to_viewer_console(
     if viewer is None:
         return
 
-    variables = _filter_variables(variables)
-
-    if viewer.window._qt_viewer._console is None:
-        viewer.window._qt_viewer.add_to_console_backlog(variables)
-    else:
-        console = viewer.window._qt_viewer._console
-        console.push(variables)
+    viewer.window.update_console(_filter_variables(variables))

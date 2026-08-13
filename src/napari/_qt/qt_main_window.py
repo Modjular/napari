@@ -883,6 +883,40 @@ class Window:
         # TODO: remove from window
         return self._qt_window.statusBar()
 
+    def update_console(self, variables):
+        """Update console's namespace with desired variables.
+
+        Parameters
+        ----------
+        variables : dict, str or list/tuple of str
+            The variables to inject into the console's namespace.  If a dict, a
+            simple update is done.  If a str, the string is assumed to have
+            variable names separated by spaces.  A list/tuple of str can also
+            be used to give the variable names.  If just the variable names are
+            give (list/tuple/str) then the variable values looked up in the
+            callers frame.
+        """
+        if self._qt_viewer._console is None:
+            self._qt_viewer.add_to_console_backlog(variables)
+            return
+        self._qt_viewer.console.push(variables)
+
+    def toggle_console_visibility(self) -> None:
+        """Toggle the visibility of the IPython console, if one exists."""
+        self._qt_viewer.toggle_console_visibility()
+
+    def open_paths(
+        self, paths, *, stack, plugin=None, layer_type=None, **kwargs
+    ):
+        """Open the given file paths in the viewer, as from the CLI."""
+        self._qt_viewer._qt_open(
+            paths,
+            stack=stack,
+            plugin=plugin,
+            layer_type=layer_type,
+            **kwargs,
+        )
+
     def _update_menu_state(self, menu: MenuStr):
         """Update enabled/visible state of menu item with context."""
         layerlist = self._qt_viewer.viewer.layers
