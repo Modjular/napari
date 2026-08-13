@@ -210,7 +210,7 @@ def add_layer_data_to_viewer(gui: FunctionGui, result: Any, return_type: type):
     ...     return np.random.rand(256, 256)
 
     """
-    from napari._qt._qapp_model.injection._qprocessors import (
+    from napari._app_model.injection._processors import (
         _add_layer_data_to_viewer,
     )
 
@@ -264,7 +264,7 @@ def add_layer_data_tuples_to_viewer(gui, result, return_type):
     ...     return [(np.ones((10,10)), {'name': 'hi'})]
 
     """
-    from napari._qt._qapp_model.injection._qprocessors import (
+    from napari._app_model.injection._processors import (
         _add_layer_data_tuples_to_viewer,
     )
 
@@ -350,7 +350,7 @@ def add_future_data(gui, future: Future, return_type, _from_tuple=True):
         (only for internal use). True if the future returns `LayerDataTuple`,
         False if it returns one of the `LayerData` types.
     """
-    from napari._qt._qapp_model.injection._qprocessors import _add_future_data
+    from napari._app_model.injection._processors import _add_future_data
 
     if viewer := find_viewer_ancestor(gui):
         _add_future_data(
@@ -549,7 +549,7 @@ def add_layers_to_viewer(
     ...     return napari.layers.Image(np.random.rand(64, 64))
 
     """
-    from napari._qt._qapp_model.injection._qprocessors import (
+    from napari._app_model.injection._processors import (
         _add_layer_to_viewer,
     )
 

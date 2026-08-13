@@ -1,0 +1,100 @@
+from typing import Optional, Union
+from unittest.mock import MagicMock
+
+import numpy as np
+import pytest
+
+from napari._app_model.injection._processors import (
+    _add_future_data,
+    _add_layer_data_to_viewer,
+    _add_layer_data_tuples_to_viewer,
+    _add_layer_to_viewer,
+)
+from napari.components import ViewerModel
+from napari.layers import Image
+from napari.types import ImageData, LabelsData
+
+
+def test_add_layer_data_tuples_to_viewer_invalid_data():
+    viewer = MagicMock()
+    error_data = (np.zeros((10, 10)), np.zeros((10, 10)))
+    with pytest.raises(
+        TypeError, match='Not a valid list of layer data tuples!'
+    ):
+        _add_layer_data_tuples_to_viewer(
+            data=error_data,
+            return_type=Union[ImageData, LabelsData],
+            viewer=viewer,
+        )
+
+
+def test_add_layer_data_tuples_to_viewer_valid_data():
+    viewer = ViewerModel()
+    valid_data = [
+        (np.zeros((10, 10)), {'name': 'layer1'}, 'image'),
+        (np.zeros((10, 20)), {'name': 'layer1'}, 'image'),
+    ]
+    _add_layer_data_tuples_to_viewer(
+        data=valid_data,
+        return_type=Union[ImageData, LabelsData],
+        viewer=viewer,
+    )
+    assert len(viewer.layers) == 1
+    assert np.array_equal(viewer.layers[0].data, np.zeros((10, 20)))
+
+
+def test_add_layer_data_to_viewer_return_type():
+    v = MagicMock()
+    with pytest.raises(TypeError, match='napari supports only Optional'):
+        _add_layer_data_to_viewer(
+            data=np.zeros((10, 10)),
+            return_type=Union[ImageData, LabelsData],
+            viewer=v,
+        )
+    _add_layer_data_to_viewer(
+        data=np.zeros((10, 10)),
+        return_type=Optional[ImageData],
+        viewer=v,
+    )
+    v.add_image.assert_called_once()
+
+
+def test_add_layer_data_to_viewer():
+    viewer = ViewerModel()
+    _add_layer_data_to_viewer(
+        data=np.zeros((10, 10)),
+        return_type=Optional[ImageData],
+        viewer=viewer,
+        layer_name='layer1',
+    )
+    assert len(viewer.layers) == 1
+    assert np.array_equal(viewer.layers[0].data, np.zeros((10, 10)))
+    _add_layer_data_to_viewer(
+        data=np.zeros((10, 20)),
+        return_type=Optional[ImageData],
+        viewer=viewer,
+        layer_name='layer1',
+    )
+    assert len(viewer.layers) == 1
+    assert np.array_equal(viewer.layers[0].data, np.zeros((10, 20)))
+
+
+def test_add_layer_to_viewer():
+    layer1 = Image(np.zeros((10, 10)))
+    layer2 = Image(np.zeros((10, 10)))
+    viewer = ViewerModel()
+    _add_layer_to_viewer(None)
+    assert len(viewer.layers) == 0
+    _add_layer_to_viewer(layer1, viewer=viewer)
+    assert len(viewer.layers) == 1
+    _add_layer_to_viewer(layer2, source={'parent': layer1}, viewer=viewer)
+    assert len(viewer.layers) == 2
+    assert layer2._source.parent == layer1
+
+
+def test_add_future_data():
+    future = MagicMock()
+    viewer = MagicMock()
+    _add_future_data(future, Union[ImageData, LabelsData])
+    _add_future_data(future, Union[ImageData, LabelsData], viewer=viewer)
+    assert future.add_done_callback.call_count == 2

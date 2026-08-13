@@ -375,7 +375,7 @@ _new_worker_qthread = _qthreading.new_worker_qthread
 
 
 def _add_worker_data(worker: FunctionWorker, return_type, source=None):
-    from napari._qt._qapp_model.injection._qprocessors import (
+    from napari._app_model.injection._processors import (
         _add_layer_data_to_viewer,
     )
 
@@ -388,7 +388,7 @@ def _add_worker_data(worker: FunctionWorker, return_type, source=None):
 def _add_worker_data_from_tuple(
     worker: FunctionWorker, return_type, source=None
 ):
-    from napari._qt._qapp_model.injection._qprocessors import (
+    from napari._app_model.injection._processors import (
         _add_layer_data_tuples_to_viewer,
     )
 
