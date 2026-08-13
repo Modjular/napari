@@ -26,11 +26,47 @@ import warnings
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from vispy.color import ColorArray, get_color_dict, get_color_names
-from vispy.color.color_array import _string_to_rgb
+
+from napari.utils.colormaps._color_dict import _COLOR_DICT
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
+
+
+def _string_to_rgb(color: str) -> np.ndarray:
+    """Convert a colour name or hex string to an RGB(A) array of length 3 or 4.
+
+    Vendored from ``vispy.color.color_array._string_to_rgb`` -- see
+    :mod:`napari.utils.colormaps._color_dict` for why.
+    """
+    if not color.startswith('#'):
+        if color.lower() not in _COLOR_DICT:
+            raise ValueError(f'Color "{color}" unknown')
+        color = _COLOR_DICT[color.lower()]
+        assert color[0] == '#'
+    # hex color
+    color = color[1:]
+    lc = len(color)
+    if lc in (3, 4):
+        color = ''.join(c + c for c in color)
+        lc = len(color)
+    if lc not in (6, 8):
+        raise ValueError(
+            'Hex color must have exactly six or eight elements following the # sign'
+        )
+    return np.array(
+        [int(color[i : i + 2], 16) / 255.0 for i in range(0, lc, 2)]
+    )
+
+
+def get_color_dict() -> dict[str, str]:
+    """Return a copy of the colour-name to hex-string mapping."""
+    return dict(_COLOR_DICT)
+
+
+def get_color_names() -> list[str]:
+    """Return the sorted list of recognised colour names."""
+    return sorted(_COLOR_DICT)
 
 
 def transform_color(colors: Any) -> np.ndarray:
@@ -154,12 +190,19 @@ def _handle_generator(colors) -> np.ndarray | None:
     return _handle_list_like(list(colors))
 
 
-def handle_nested_colors(colors) -> ColorArray:
-    """In case of an array-like container holding colors, unpack it."""
+def handle_nested_colors(colors) -> np.ndarray:
+    """In case of an array-like container holding colors, unpack it.
+
+    Returns an Nx4 float32 RGBA array, matching the other ``_handle_*``
+    helpers in this module. This previously returned a ``vispy.color
+    .ColorArray`` wrapping the same data, which was both a vispy dependency
+    in the Qt-free model layer and a name collision with napari's own
+    :class:`napari.utils.color.ColorArray`.
+    """
     colors_as_rbga = np.ones((len(colors), 4), dtype=np.float32)
     for idx, color in enumerate(colors):
         colors_as_rbga[idx] = _color_switch[type(color)](color)
-    return ColorArray(colors_as_rbga)
+    return colors_as_rbga
 
 
 def _handle_array(colors: np.ndarray) -> np.ndarray:

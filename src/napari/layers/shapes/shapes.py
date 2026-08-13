@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import numpy as np
 import numpy.typing as npt
 from psygnal.containers import Selection
-from vispy.color import get_color_names
 
 from napari.layers.base import Layer, _LayerSlicingState, no_op
 from napari.layers.base._base_constants import ActionType
@@ -72,6 +71,7 @@ from napari.utils.colormaps import Colormap, ValidColormapArg, ensure_colormap
 from napari.utils.colormaps.categorical_colormap_utils import ColorCycle
 from napari.utils.colormaps.colormap_utils import ColorType
 from napari.utils.colormaps.standardize_color import (
+    get_color_names,
     hex_to_name,
     rgb_to_hex,
     transform_color,
