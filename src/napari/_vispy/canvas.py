@@ -17,6 +17,10 @@ from superqt.utils import qthrottled
 from vispy.scene import Grid, SceneCanvas as SceneCanvas_, ViewBox, Widget
 
 from napari._vispy.camera import VispyCamera
+from napari._vispy.key_bindings import (
+    on_key_press as vispy_on_key_press,
+    on_key_release as vispy_on_key_release,
+)
 from napari._vispy.mouse_event import NapariMouseEvent
 from napari._vispy.utils.cursor import QtCursorVisual
 from napari._vispy.utils.gl import get_max_texture_sizes
@@ -237,10 +241,10 @@ class VispyCanvas:
         self._scene_canvas.context.set_depth_func('lequal')
 
         self._scene_canvas.events.key_press.connect(
-            self._key_map_handler.on_key_press
+            partial(vispy_on_key_press, self._key_map_handler)
         )
         self._scene_canvas.events.key_release.connect(
-            self._key_map_handler.on_key_release
+            partial(vispy_on_key_release, self._key_map_handler)
         )
         self._scene_canvas.events.draw.connect(self.enable_dims_play)
         self._scene_canvas.events.mouse_double_click.connect(
