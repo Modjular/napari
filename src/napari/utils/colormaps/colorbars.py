@@ -4,7 +4,7 @@ import numpy as np
 import numpy.typing as npt
 
 if TYPE_CHECKING:
-    from vispy.color import Colormap
+    from napari.utils.colormaps.colormap import Colormap
 
 
 def make_colorbar(
@@ -14,7 +14,7 @@ def make_colorbar(
 
     Parameters
     ----------
-    cmap : vispy.color.Colormap
+    cmap : napari.utils.colormaps.Colormap
         Colormap to create colorbar with.
     size : 2-tuple
         Shape of colorbar.

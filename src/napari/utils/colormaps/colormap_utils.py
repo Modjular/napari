@@ -1,4 +1,5 @@
 import re
+import sys
 import warnings
 from collections import UserDict, defaultdict
 from collections.abc import Mapping
@@ -6,6 +7,7 @@ from functools import lru_cache
 from threading import Lock
 from typing import (
     TYPE_CHECKING,
+    Any,
     NamedTuple,
     Protocol,
     TypeVar,
@@ -13,13 +15,6 @@ from typing import (
 )
 
 import numpy as np
-from vispy.color import (
-    Color,
-    ColorArray,
-    Colormap as VispyColormap,
-    get_colormap,
-    get_colormaps,
-)
 
 from napari.utils.colormaps import _accelerated_cmap
 from napari.utils.colormaps.bop_colors import bopd
@@ -31,25 +26,41 @@ from napari.utils.colormaps.colormap import (
 from napari.utils.colormaps.inverse_colormaps import inverse_cmaps
 from napari.utils.colormaps.standardize_color import transform_color
 from napari.utils.colormaps.vendored.cm import cmap_d
+from napari.utils.colormaps.vendored.vispy_colormaps import VISPY_COLORMAPS
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from vispy.color import Colormap as VispyColormap
+
 # All parsable input color types that a user can provide
-ColorType = Union[list, tuple, np.ndarray, str, Color, ColorArray]
+ColorType = Union[list, tuple, np.ndarray, str]
 
 
 ValidColormapArg = Union[
     str,
     ColorType,
-    VispyColormap,
+    'VispyColormap',
     Colormap,
-    tuple[str, VispyColormap],
+    tuple[str, 'VispyColormap'],
     tuple[str, Colormap],
-    dict[str, VispyColormap],
+    dict[str, 'VispyColormap'],
     dict[str, Colormap],
     dict,
 ]
+
+
+def _is_vispy_colormap(obj: Any) -> bool:
+    """Return True if ``obj`` is a ``vispy.color.Colormap`` instance.
+
+    napari accepts vispy colormap objects but must not import vispy to find
+    out: the model layer has to stay importable where vispy is unavailable.
+    If ``vispy.color`` has never been imported then ``obj`` cannot possibly be
+    an instance of one of its classes, so this never triggers an import.
+    """
+    vispy_color = sys.modules.get('vispy.color')
+    return vispy_color is not None and isinstance(obj, vispy_color.Colormap)
+
 
 T = TypeVar('T', contravariant=True)
 
@@ -118,11 +129,11 @@ matplotlib_colormaps = {
         'PiYG',
     )
 }
-# some colormaps use BaseColormap and custom mapping functions instead of
-# standard colors/controls, so they are broken in napari
-_VISPY_COLORMAPS = {
-    k: v for k, v in get_colormaps().items() if isinstance(v, VispyColormap)
-}
+# Names napari sources from vispy rather than matplotlib. The data is
+# vendored (see napari.utils.colormaps.vendored.vispy_colormaps); vispy's
+# BaseColormap subclasses, which use custom mapping functions instead of
+# standard colors/controls and were always broken in napari, are not included.
+_VISPY_COLORMAPS = VISPY_COLORMAPS
 
 _PRIMARY_COLORS = {
     'red': ('red', [1.0, 0.0, 0.0]),
@@ -248,7 +259,7 @@ def convert_vispy_colormap(colormap, name='vispy'):
     -------
     napari.utils.Colormap
     """
-    if not isinstance(colormap, VispyColormap):
+    if not _is_vispy_colormap(colormap):
         raise TypeError(
             'Colormap must be a vispy colormap if passed to from_vispy'
         )
@@ -265,12 +276,23 @@ def convert_vispy_colormap(colormap, name='vispy'):
     )
 
 
-def _napari_cmap_to_vispy(colormap: Colormap) -> VispyColormap:
-    """Convert a napari colormap to its equivalent vispy colormap."""
-    cmap_args = colormap.model_dump()
-    cmap_args.pop('name')
-    cmap_args['bad_color'] = cmap_args.pop('nan_color')
-    return VispyColormap(**cmap_args)
+def _vendored_vispy_colormap(name: str) -> Colormap:
+    """Build a napari colormap from the vendored vispy colormap data.
+
+    Equivalent to ``convert_vispy_colormap(vispy.color.get_colormap(name))``,
+    without needing vispy installed. Every vendored entry is linear
+    interpolation with a transparent nan colour and no high/low colours, so
+    those are not stored per-entry.
+    """
+    data = VISPY_COLORMAPS[name]
+    return Colormap(
+        name=name,
+        display_name=name.replace('_', ' '),
+        colors=np.array(data['colors'], dtype=np.float32),
+        controls=np.array(data['controls'], dtype=np.float32),
+        interpolation='linear',
+        nan_color=[0.0, 0.0, 0.0, 0.0],
+    )
 
 
 def _validate_rgb(colors, *, tolerance=0.0):
@@ -631,8 +653,7 @@ def vispy_or_mpl_colormap(name) -> Colormap:
         If no colormap with that name is found within vispy or matplotlib.
     """
     if name in _VISPY_COLORMAPS:
-        cmap = get_colormap(name)
-        colormap = convert_vispy_colormap(cmap, name=name)
+        colormap = _vendored_vispy_colormap(name)
     else:
         try:
             mpl_cmap = cmap_d[name]
@@ -770,7 +791,7 @@ def ensure_colormap(colormap: ValidColormapArg) -> Colormap:
 
         elif isinstance(colormap, Colormap):
             name = AVAILABLE_COLORMAPS.add_colormap_if_missing(colormap)
-        elif isinstance(colormap, VispyColormap):
+        elif _is_vispy_colormap(colormap):
             # if a vispy colormap instance is provided, make sure we don't already
             # know about it before adding a new unnamed colormap
             name, _display_name = _increment_unnamed_colormap(
@@ -786,12 +807,15 @@ def ensure_colormap(colormap: ValidColormapArg) -> Colormap:
             if (
                 len(colormap) == 2
                 and isinstance(colormap[0], str)
-                and isinstance(colormap[1], VispyColormap | Colormap)
+                and (
+                    isinstance(colormap[1], Colormap)
+                    or _is_vispy_colormap(colormap[1])
+                )
             ):
                 name = colormap[0]
                 cmap = colormap[1]
                 # Convert from vispy colormap
-                if isinstance(cmap, VispyColormap):
+                if _is_vispy_colormap(cmap):
                     cmap = convert_vispy_colormap(cmap, name=name)
                 else:
                     cmap.name = name
@@ -806,12 +830,13 @@ def ensure_colormap(colormap: ValidColormapArg) -> Colormap:
 
         elif isinstance(colormap, dict):
             if 'colors' in colormap and not (
-                isinstance(colormap['colors'], VispyColormap | Colormap)
+                isinstance(colormap['colors'], Colormap)
+                or _is_vispy_colormap(colormap['colors'])
             ):
                 cmap = Colormap(**colormap)
                 name = AVAILABLE_COLORMAPS.add_colormap_if_missing(cmap)
             elif not all(
-                (isinstance(i, VispyColormap | Colormap))
+                (isinstance(i, Colormap) or _is_vispy_colormap(i))
                 for i in colormap.values()
             ):
                 raise TypeError(
@@ -822,7 +847,7 @@ def ensure_colormap(colormap: ValidColormapArg) -> Colormap:
                 name_li = []
                 for key, cmap in colormap.items():
                     # Convert from vispy colormap
-                    if isinstance(cmap, VispyColormap):
+                    if _is_vispy_colormap(cmap):
                         cmap = convert_vispy_colormap(cmap, name=key)
                     else:
                         cmap.name = key
