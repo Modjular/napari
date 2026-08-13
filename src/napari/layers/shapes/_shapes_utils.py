@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING, overload
 import numpy as np
 from skimage import measure
 from skimage.draw import line, polygon2mask
-from vispy.geometry import Triangulation
-from vispy.visuals.tube import _frenet_frames
 
+from napari._vendor.vispy_geometry._helpers import _frenet_frames
+from napari._vendor.vispy_geometry.triangulation import Triangulation
 from napari.layers.shapes import (
     _accelerated_triangulate_dispatch as _triangulate_dispatch,
     _accelerated_triangulate_python as _triangulate_py,
