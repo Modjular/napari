@@ -4,7 +4,6 @@ import inspect
 from pathlib import Path
 from typing import Annotated, Any
 
-from psutil import virtual_memory
 from pydantic import Field, field_validator
 from pydantic_settings import SettingsConfigDict
 
@@ -13,6 +12,7 @@ from napari.settings._constants import (
     LabelDTypes,
     LoopMode,
 )
+from napari.utils._system import total_memory_bytes
 from napari.utils.camera_orientations import (
     DEFAULT_ORIENTATION_TYPED,
     DepthAxisOrientation,
@@ -35,13 +35,13 @@ GridHeight = Annotated[int, Field(ge=-1), NotEqual(0)]
 GridSpacing = Annotated[float, Field(ge=0, le=MAX_GRID_SPACING)]
 
 _DEFAULT_MEM_FRACTION = 0.25
-MAX_CACHE = virtual_memory().total * 0.5 / 1e9
+MAX_CACHE = total_memory_bytes() * 0.5 / 1e9
 
 
 class DaskSettings(EventedModel):
     enabled: bool = True
     cache: float = Field(
-        virtual_memory().total * _DEFAULT_MEM_FRACTION / 1e9,
+        total_memory_bytes() * _DEFAULT_MEM_FRACTION / 1e9,
         ge=0,
         le=MAX_CACHE,
         title='Cache size (GB)',
