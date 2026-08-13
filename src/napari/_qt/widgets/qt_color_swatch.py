@@ -13,11 +13,11 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from vispy.color import get_color_dict
 
 from napari._qt.dialogs.qt_modal import QtPopup
 from napari.utils.colormaps.colormap_utils import ColorType
 from napari.utils.colormaps.standardize_color import (
+    get_color_dict,
     hex_to_name,
     rgb_to_hex,
     transform_color,

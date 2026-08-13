@@ -993,5 +993,24 @@ type = "forbidden"
 source_modules = "napari"
 forbidden_modules = ["napari_builtins"]
 
+[[tool.importlinter.contracts]]
+name = "Forbid vispy imports outside the vispy backend"
+type = "forbidden"
+source_modules = "napari"
+forbidden_modules = ["vispy"]
+ignore_imports = [
+    "napari._vispy -> vispy",
+    "napari._vispy.** -> vispy",
+    "napari._qt.widgets.qt_histogram -> vispy",
+    # Tests and benchmarks may use vispy freely.
+    "napari._tests.** -> vispy",
+    "napari.**._tests.** -> vispy",
+    "napari.benchmarks.** -> vispy",
+    # TYPE_CHECKING-only, so they cost nothing at import time. napari still
+    # accepts vispy colormaps and vispy mouse events at runtime.
+    "napari.utils.colormaps.colormap_utils -> vispy",
+    "napari.layers.shapes._shapes_mouse_bindings -> vispy",
+]
+
 [tool.check-wheel-contents]
 toplevel = ["napari", "napari_builtins"]
