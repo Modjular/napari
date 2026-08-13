@@ -65,7 +65,7 @@ from typing import (
     cast,
 )
 
-from vispy.util.logs import _handle_exception
+from napari.utils.events._error_handling import handle_callback_error
 
 
 class Event:
@@ -739,7 +739,7 @@ class EventEmitter:
             ):
                 self.disconnect(cb)
                 return
-            _handle_exception(
+            handle_callback_error(
                 self.ignore_callback_errors,
                 self.print_callback_errors,
                 self,
