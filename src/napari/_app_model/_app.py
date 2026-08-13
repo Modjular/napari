@@ -14,6 +14,7 @@ from napari._app_model.actions._layerlist_context_actions import (
     LAYERLIST_CONTEXT_SUBMENUS,
 )
 from napari._app_model.actions._view import VIEW_ACTIONS, VIEW_SUBMENUS
+from napari._app_model.injection._providers import PROVIDERS
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -62,6 +63,7 @@ class NapariApplication(Application):
         )
 
         self.injection_store.namespace = _napari_names  # type: ignore [assignment]
+        self.injection_store.register(providers=PROVIDERS)
 
         self.register_actions(LAYERLIST_CONTEXT_ACTIONS)
         self.register_actions(VIEW_ACTIONS)
