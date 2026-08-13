@@ -1,0 +1,10 @@
+{
+  "name": "napari-pyodide-spike",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local Pyodide distribution used to de-risk running napari's core under Pyodide (Phase 0 of the napari-in-the-browser roadmap). Not a shipped package.",
+  "license": "BSD-3-Clause",
+  "dependencies": {
+    "pyodide": "314.0.3"
+  }
+}

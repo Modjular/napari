@@ -1,0 +1,5 @@
+# Pin for the one-off Pyodide install spike (tools/pyodide_spike/). Not part
+# of napari's own dependency set — install into a scratch venv or napari's
+# dev venv, separately from `pip install -e ".[testing]"`.
+pytest-pyodide==0.59.2
+build>=1.0
