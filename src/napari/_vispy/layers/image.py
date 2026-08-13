@@ -10,6 +10,7 @@ from napari._vispy.layers.scalar_field import (
     VispyScalarFieldBaseLayer,
 )
 from napari._vispy.layers.tiled_image import TiledImageNode
+from napari._vispy.utils.colormap import _napari_cmap_to_vispy
 from napari._vispy.utils.gl import get_gl_extensions, get_max_texture_sizes
 from napari._vispy.visuals.image import Image as ImageNode
 from napari._vispy.visuals.volume import Volume as VolumeNode
@@ -17,7 +18,6 @@ from napari.layers.base._base_constants import Blending
 from napari.layers.image.image import Image
 from napari.utils.colormaps.colormap_utils import (
     _coerce_contrast_limits,
-    _napari_cmap_to_vispy,
 )
 
 if TYPE_CHECKING:

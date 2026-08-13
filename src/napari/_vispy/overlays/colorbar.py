@@ -5,10 +5,10 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from napari._vispy.overlays.base import LayerOverlayMixin, VispyCanvasOverlay
+from napari._vispy.utils.colormap import _napari_cmap_to_vispy
 from napari._vispy.visuals.colorbar import ColorBar
 from napari.utils.colormaps.colormap_utils import (
     _coerce_contrast_limits,
-    _napari_cmap_to_vispy,
 )
 
 if TYPE_CHECKING:
