@@ -10,7 +10,11 @@ from qtpy.QtWidgets import QWidget
 
 from napari._app_model import get_app_model
 from napari._app_model.constants import MenuId
-from napari._qt._qapp_model.qactions import _plugins, init_qactions
+from napari._qt._qapp_model.qactions import (
+    _plugins,
+    _register_qt_plugin_actions,
+    init_qactions,
+)
 from napari._qt._qplugins._qnpe2 import _toggle_or_get_widget
 from napari._tests.utils import skip_local_popups
 from napari.plugins._tests.test_npe2 import mock_pm  # noqa: F401
@@ -169,6 +173,12 @@ def test_plugin_menu_plugin_state_change(
     def widget2():
         """Dummy widget."""
 
+    # Force a fresh plugin-action replay so the widgets just contributed
+    # above get picked up -- the earlier init_qactions() call at the top of
+    # this test already consumed its one-shot replay before they existed.
+    # (init_qactions' own cache must stay warm: its static menubar actions
+    # would raise if re-registered.)
+    _register_qt_plugin_actions.cache_clear()
     # Configures `app`, registers actions and initializes plugins
     make_napari_viewer()
 
@@ -298,6 +308,12 @@ def test_plugins_menu_sorted(
     def widget2_2(): ...
 
     _initialize_plugins()
+    # Qt-specific plugin-menu submenus are registered by
+    # _register_qt_plugin_actions, normally called from _QtMainWindow on
+    # Window construction -- call it directly since no real Window is
+    # constructed in this test.
+    init_qactions()
+    _register_qt_plugin_actions()
     plugins_menu = list(get_app_model().menus.get_menu('napari/plugins'))
     submenus = [item for item in plugins_menu if isinstance(item, SubmenuItem)]
     assert len(submenus) == 2

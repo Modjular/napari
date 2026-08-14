@@ -15,6 +15,56 @@ if TYPE_CHECKING:
 # import them inside the init_qactions function.
 
 
+@lru_cache  # see docstring: connects listeners once, replays are idempotent
+def _register_qt_plugin_actions() -> None:
+    """Register Qt-specific plugin sample/widget actions (samples menu,
+    plugin widgets submenu) and keep them in sync with plugin state.
+
+    Called by `_QtMainWindow.__init__` on every Window construction --
+    deliberately *not* folded into `init_qactions`, whose static menubar
+    actions truly must only ever be registered once (app-model raises on a
+    duplicate command id). A plugin can gain new contributions after this
+    first runs (most plugins declare everything upfront, but dynamic/test
+    plugins can mutate their manifest in place without emitting a
+    registration event), so callers that need to pick that up call
+    `_register_qt_plugin_actions.cache_clear()` then this again -- safe to
+    do without touching `init_qactions`' own cache. `_register_qt_actions`
+    itself tolerates being called more than once for the same manifest.
+
+    napari.plugins._npe2 stays Qt-agnostic by not importing us; instead we
+    listen for the same npe2 plugin-manager events it does, scoped to just
+    this Qt-specific half of plugin action registration.
+    """
+    from npe2 import plugin_manager as pm
+
+    from napari._qt._qplugins import _register_qt_actions
+    from napari.plugins._npe2 import iter_enabled_manifests
+
+    def _on_plugin_enablement_change_qt(
+        enabled: set[str], disabled: set[str]
+    ) -> None:
+        manifests = (
+            pm.get_manifest(name) for name in enabled if name in pm.instance()
+        )
+        for mf in iter_enabled_manifests(manifests):
+            _register_qt_actions(mf)
+
+    def _on_plugins_registered_qt(manifests) -> None:
+        for mf in iter_enabled_manifests(manifests):
+            _register_qt_actions(mf)
+
+    pm.instance().events.enablement_changed.connect(
+        _on_plugin_enablement_change_qt
+    )
+    pm.instance().events.plugins_registered.connect(_on_plugins_registered_qt)
+
+    # replay for plugins already registered/enabled before this call (the
+    # common case -- plugin discovery runs in Viewer.__init__, before
+    # Window.__init__ / init_qactions)
+    for mf in iter_enabled_manifests(pm.instance().iter_manifests()):
+        _register_qt_actions(mf)
+
+
 @lru_cache  # only call once
 def init_qactions() -> None:
     """Initialize all Qt-based Actions with app-model
@@ -67,6 +117,12 @@ def init_qactions() -> None:
         processors=QPROCESSORS,
         providers=QPROVIDERS,
     )
+
+    # Note: Qt-specific plugin sample/widget actions (samples menu, plugin
+    # widgets submenu) are NOT registered here -- see
+    # _register_qt_plugin_actions, called separately by _QtMainWindow so it
+    # can run on every Window construction, independently of this function's
+    # one-shot cache.
 
     # register menubar actions
     app.register_actions(

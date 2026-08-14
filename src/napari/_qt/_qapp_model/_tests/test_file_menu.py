@@ -157,6 +157,10 @@ def test_sample_menu_sorted(
     tmp_plugin: DynamicPlugin,
 ):
     from napari._app_model import get_app_model
+    from napari._qt._qapp_model.qactions import (
+        _register_qt_plugin_actions,
+        init_qactions,
+    )
     from napari.plugins import _initialize_plugins
 
     # we make sure 'plugin-b' is registered first
@@ -176,6 +180,12 @@ def test_sample_menu_sorted(
     def sample2_2(): ...
 
     _initialize_plugins()
+    # Qt-specific sample-menu submenus are registered by
+    # _register_qt_plugin_actions, normally called from _QtMainWindow on
+    # Window construction -- call it directly since no real Window is
+    # constructed in this test.
+    init_qactions()
+    _register_qt_plugin_actions()
     samples_menu = list(get_app_model().menus.get_menu('napari/file/samples'))
     submenus = [item for item in samples_menu if isinstance(item, SubmenuItem)]
     assert len(submenus) == 3

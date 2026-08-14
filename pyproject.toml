@@ -967,25 +967,16 @@ name = "Forbid import PyQt and PySide"
 type = "forbidden"
 source_modules = "napari"
 forbidden_modules = ["PyQt5", "PyQt6", "PySide6"]
-ignore_imports = [
-    "napari.plugins._npe2 -> napari._qt._qplugins",
-]
 
 [[tool.importlinter.contracts]]
 name = "Block import from qt module in napari.layers"
 type = "layers"
 layers = ["napari.qt","napari.layers"]
-ignore_imports = [
-    "napari.plugins._npe2 -> napari._qt._qplugins",
-]
 
 [[tool.importlinter.contracts]]
 name = "Block import from qt module in napari.components"
 type = "layers"
 layers = ["napari.qt","napari.components"]
-ignore_imports = [
-    "napari.plugins._npe2 -> napari._qt._qplugins",
-]
 
 [[tool.importlinter.contracts]]
 name = "Block imports from napari_builtins in napari core"

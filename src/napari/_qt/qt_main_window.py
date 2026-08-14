@@ -49,7 +49,11 @@ from qtpy.QtWidgets import (
 from napari._app_model.constants import MenuId
 from napari._app_model.context import create_context, get_context
 from napari._qt._qapp_model import build_qmodel_menu
-from napari._qt._qapp_model.qactions import add_dummy_actions, init_qactions
+from napari._qt._qapp_model.qactions import (
+    _register_qt_plugin_actions,
+    add_dummy_actions,
+    init_qactions,
+)
 from napari._qt._qapp_model.qactions._debug import _is_set_trace_active
 from napari._qt.dialogs.confirm_close_dialog import ConfirmCloseDialog
 from napari._qt.dialogs.preferences_dialog import PreferencesDialog
@@ -196,6 +200,15 @@ class _QtMainWindow(QMainWindow):
         handle = self.windowHandle()
         if handle is not None:
             handle.screenChanged.connect(self._qt_viewer.canvas.screen_changed)
+
+        # Register Qt-specific plugin sample/widget actions before the
+        # static app-model actions below, so relative menu-item order
+        # matches the pre-existing behavior (registered during plugin
+        # discovery in Viewer.__init__, ahead of Window construction).
+        # Called every time (not just the first), independently of
+        # init_qactions' own one-shot cache, so contributions a plugin
+        # gains after this first runs still get picked up.
+        _register_qt_plugin_actions()
 
         # this is the line that initializes any Qt-based app-model Actions that
         # were defined somewhere in the `_qt` module and imported in init_qactions
@@ -1425,6 +1438,18 @@ class Window:
 
         if inner_widget is not None:
             unregister_widget(inner_widget)
+            # setParent(None) above detaches it, leaving it a parentless
+            # (and now, top-level-looking) widget with nothing to delete it;
+            # schedule that explicitly rather than leaking it. Also mark it
+            # 'handled_widget' (the same convention qtbot.addWidget() uses)
+            # so test teardown's dangling-widget checks recognize this as an
+            # intentional, already-accounted-for removal immediately, rather
+            # than needing to flush Qt's deferred-delete queue to notice --
+            # which, this early in a plugin-disable callback, can also
+            # trigger unrelated queued callbacks against still-tearing-down
+            # windows.
+            inner_widget.setObjectName('handled_widget')
+            inner_widget.deleteLater()
         unregister_widget(_dw)
 
         # Deleting the dock widget means any references to it will no longer

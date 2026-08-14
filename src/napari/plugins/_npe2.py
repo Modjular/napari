@@ -12,7 +12,7 @@ from npe2 import io_utils, plugin_manager as pm
 from npe2.manifest import contributions
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
+    from collections.abc import Iterable, Iterator, Sequence
 
     from app_model import Action
     from npe2.manifest import PluginManifest
@@ -271,13 +271,14 @@ def on_plugin_enablement_change(enabled: set[str], disabled: set[str]):
     to_disable.update(disabled)
     plugin_settings.disabled_plugins = to_disable
 
-    for plugin_name in enabled:
-        # technically, you can enable (i.e. "undisable") a plugin that isn't
-        # currently registered/available.  So we check to make sure this is
-        # actually a registered plugin.
-        if plugin_name in pm.instance():
-            _register_manifest_actions(pm.get_manifest(plugin_name))
-            _safe_register_qt_actions(pm.get_manifest(plugin_name))
+    # technically, you can enable (i.e. "undisable") a plugin that isn't
+    # currently registered/available.  So we check to make sure this is
+    # actually a registered plugin.
+    manifests = (
+        pm.get_manifest(name) for name in enabled if name in pm.instance()
+    )
+    for mf in iter_enabled_manifests(manifests):
+        _register_manifest_actions(mf)
 
 
 def on_plugins_registered(manifests: set[PluginManifest]):
@@ -285,14 +286,27 @@ def on_plugins_registered(manifests: set[PluginManifest]):
 
     'Registered' means that a manifest has been provided or discovered.
     """
+    for mf in iter_enabled_manifests(manifests):
+        _register_manifest_actions(mf)
+
+
+def iter_enabled_manifests(
+    manifests: Iterable[PluginManifest],
+) -> Iterator[PluginManifest]:
+    """Yield the currently-enabled manifests in `manifests`, sorted by name.
+
+    The single source of truth for "what counts as an enabled plugin" --
+    frontends that need to react to plugin registration/enablement (e.g. to
+    register their own actions) should filter through this rather than
+    reimplementing the `pm.is_disabled` check.
+    """
     sorted_manifests = sorted(
         manifests,
         key=lambda mf: mf.display_name if mf.display_name else mf.name,
     )
     for mf in sorted_manifests:
         if not pm.is_disabled(mf.name):
-            _register_manifest_actions(mf)
-            _safe_register_qt_actions(mf)
+            yield mf
 
 
 def _register_manifest_actions(mf: PluginManifest) -> None:
@@ -313,18 +327,6 @@ def _register_manifest_actions(mf: PluginManifest) -> None:
         context.register_disposable(app.register_actions(actions))
     if submenus:
         context.register_disposable(app.menus.append_menu_items(submenus))
-
-
-def _safe_register_qt_actions(mf: PluginManifest) -> None:
-    """Register samples and widget `Actions` if Qt available."""
-    try:
-        from napari._qt._qplugins import _register_qt_actions
-    except ImportError:  # pragma: no cover
-        # if no Qt bindings are installed (PyQt/PySide), then trying to import
-        # qtpy will raise an ImportError, *not* a ModuleNotFoundError
-        pass
-    else:
-        _register_qt_actions(mf)
 
 
 def _npe2_manifest_to_actions(

@@ -138,12 +138,19 @@ def mock_app_model():
     from napari._app_model._app import NapariApplication, _napari_names
 
     try:
-        from napari._qt._qapp_model.qactions import init_qactions
+        from napari._qt._qapp_model.qactions import (
+            _register_qt_plugin_actions,
+            init_qactions,
+        )
         from napari.plugins import _initialize_plugins
     except ImportError:
 
         @lru_cache
         def init_qactions():
+            pass
+
+        @lru_cache
+        def _register_qt_plugin_actions():
             pass
 
         @lru_cache
@@ -159,6 +166,7 @@ def mock_app_model():
             Application.destroy('test_app')
             _initialize_plugins.cache_clear()
             init_qactions.cache_clear()
+            _register_qt_plugin_actions.cache_clear()
 
 
 @pytest.fixture(autouse=True)
@@ -222,7 +230,10 @@ def make_napari_viewer(
     from qtpy.QtWidgets import QApplication, QWidget
 
     from napari import Viewer
-    from napari._qt._qapp_model.qactions import init_qactions
+    from napari._qt._qapp_model.qactions import (
+        _register_qt_plugin_actions,
+        init_qactions,
+    )
     from napari._qt.qt_viewer import QtViewer
     from napari.plugins import _initialize_plugins
     from napari.settings import get_settings
@@ -253,6 +264,7 @@ def make_napari_viewer(
 
     _initialize_plugins.cache_clear()
     init_qactions.cache_clear()
+    _register_qt_plugin_actions.cache_clear()
 
     viewers: WeakSet[Viewer] = WeakSet()
     request.node._viewer_weak_set = viewers

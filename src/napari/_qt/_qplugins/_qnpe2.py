@@ -11,6 +11,7 @@ from typing import (
     TYPE_CHECKING,
     cast,
 )
+from weakref import WeakKeyDictionary
 
 from app_model import Action
 from app_model.types import SubmenuItem, ToggleRule
@@ -37,7 +38,16 @@ if TYPE_CHECKING:
     from npe2.plugin_manager import PluginName
     from npe2.types import WidgetCreator
 
-    from napari.qt import QtViewer
+    from napari._qt.qt_viewer import QtViewer
+
+# Tracks, per Window, which (plugin, widget) removal-disposables have
+# already been registered -- _register_qt_actions can be called more than
+# once for the same manifest (see its docstring), and without this an
+# unconditional re-loop would append a fresh closure capturing `window`
+# every time, leaking Windows for the lifetime of the plugin's context.
+_registered_widget_removals: WeakKeyDictionary[object, set[str]] = (
+    WeakKeyDictionary()
+)
 
 
 def _get_contrib_parent_menu(
@@ -291,13 +301,20 @@ def _register_qt_actions(mf: PluginManifest) -> None:
 
     This is called when a plugin is registered or enabled and it adds the
     plugin's sample and widget actions and submenus to the app model registry.
+
+    Safe to call more than once for the same manifest (e.g. once per Window
+    construction, to pick up contributions added after an earlier call): menu
+    submenus are naturally idempotent, but command actions are not -- an
+    already-registered `id` would raise, so those are filtered out here.
     """
     app = get_app_model()
     samples_submenu, sample_actions = _build_samples_submenu_actions(mf)
     widgets_submenu, widget_actions = _build_widgets_submenu_actions(mf)
 
     context = pm.get_context(cast('PluginName', mf.name))
-    actions = sample_actions + widget_actions
+    actions = [
+        a for a in sample_actions + widget_actions if a.id not in app.commands
+    ]
     if actions:
         context.register_disposable(app.register_actions(actions))
     submenus = samples_submenu + widgets_submenu
@@ -307,10 +324,19 @@ def _register_qt_actions(mf: PluginManifest) -> None:
     # Register dispose functions to remove plugin widgets from widget dictionary
     # `window._dock_widgets`
     if window := _provide_window():
+        already_registered = _registered_widget_removals.setdefault(
+            window, set()
+        )
         for widget in mf.contributions.widgets or ():
+            removal_key = f'{mf.name}::{widget.display_name}'
+            if removal_key in already_registered:
+                continue
+            already_registered.add(removal_key)
             widget_event = Event(type_name='', value=widget.display_name)
 
-            def _remove_widget(event: Event = widget_event) -> None:
+            def _remove_widget(
+                event: Event = widget_event, window=window
+            ) -> None:
                 window._remove_dock_widget(event)
 
             context.register_disposable(_remove_widget)
