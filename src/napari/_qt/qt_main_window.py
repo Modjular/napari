@@ -78,6 +78,10 @@ from napari.plugins._npe2 import index_npe1_adapters
 from napari.settings import get_settings
 from napari.utils import perf
 from napari.utils._proxies import MappingProxy, PublicOnlyProxy
+from napari.utils._viewer_registry import (
+    register_widget_viewer,
+    unregister_widget,
+)
 from napari.utils.events import Event
 from napari.utils.io import imsave
 from napari.utils.misc import (
@@ -1257,6 +1261,10 @@ class Window:
         # Add dock widget to dictionary
         self._wrapped_dock_widgets[dock_widget.name] = dock_widget
 
+        viewer = self._qt_viewer.viewer
+        register_widget_viewer(widget, viewer)
+        register_widget_viewer(dock_widget, viewer)
+
         return dock_widget
 
     @property
@@ -1405,14 +1413,19 @@ class Window:
         else:
             _dw = widget
 
-        if _dw.widget():
-            _dw.widget().setParent(None)
+        inner_widget = _dw.widget()
+        if inner_widget:
+            inner_widget.setParent(None)
         self._qt_window.removeDockWidget(_dw)
         if menu is not None:
             menu.removeAction(_dw.toggleViewAction())
 
         # Remove dock widget from dictionary
         self._wrapped_dock_widgets.pop(_dw.name, None)
+
+        if inner_widget is not None:
+            unregister_widget(inner_widget)
+        unregister_widget(_dw)
 
         # Deleting the dock widget means any references to it will no longer
         # work but it's not really useful anyway, since the inner widget has

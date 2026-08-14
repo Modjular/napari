@@ -15,6 +15,7 @@ Qt parent-chain walk in `utils/_magicgui.py::find_viewer_ancestor`).
 
 from __future__ import annotations
 
+from contextlib import suppress
 from typing import TYPE_CHECKING
 from weakref import WeakKeyDictionary
 
@@ -29,28 +30,37 @@ def register_widget_viewer(widget: object, viewer: Viewer) -> None:
 
     Also registers under `widget.native` when present, so callers don't
     need to know whether they're holding a magicgui `Widget` or the
-    underlying native widget it wraps.
+    underlying native widget it wraps. A `widget` that doesn't support weak
+    references (e.g. a plain `list`, which some callers pass to combine
+    multiple widgets into one dock) is silently skipped -- there's nothing
+    to key a weak registry on.
     """
-    _WIDGET_VIEWERS[widget] = viewer
+    with suppress(TypeError):
+        _WIDGET_VIEWERS[widget] = viewer
     native = getattr(widget, 'native', None)
     if native is not None:
-        _WIDGET_VIEWERS[native] = viewer
+        with suppress(TypeError):
+            _WIDGET_VIEWERS[native] = viewer
 
 
 def unregister_widget(widget: object) -> None:
     """Remove any viewer association for `widget` (and its `.native`)."""
-    _WIDGET_VIEWERS.pop(widget, None)
+    with suppress(TypeError):
+        _WIDGET_VIEWERS.pop(widget, None)
     native = getattr(widget, 'native', None)
     if native is not None:
-        _WIDGET_VIEWERS.pop(native, None)
+        with suppress(TypeError):
+            _WIDGET_VIEWERS.pop(native, None)
 
 
 def lookup_viewer_for_widget(widget: object) -> Viewer | None:
     """Return the `Viewer` registered for `widget`, or `widget.native`."""
-    viewer = _WIDGET_VIEWERS.get(widget)
-    if viewer is not None:
-        return viewer
+    with suppress(TypeError):
+        viewer = _WIDGET_VIEWERS.get(widget)
+        if viewer is not None:
+            return viewer
     native = getattr(widget, 'native', None)
     if native is not None:
-        return _WIDGET_VIEWERS.get(native)
+        with suppress(TypeError):
+            return _WIDGET_VIEWERS.get(native)
     return None

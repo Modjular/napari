@@ -48,6 +48,20 @@ def test_native_aliasing():
     assert lookup_viewer_for_widget(widget.native) is None
 
 
+def test_non_weakly_referenceable_widget_is_a_no_op():
+    """Some callers (e.g. Window.add_dock_widget) pass a plain `list` to
+    combine multiple widgets into one dock -- lists don't support weak
+    references, so registration/lookup/unregistration must degrade to a
+    silent no-op rather than raising.
+    """
+    widget = [_FakeWidget(), _FakeWidget()]
+    viewer = _FakeViewer()
+
+    register_widget_viewer(widget, viewer)
+    assert lookup_viewer_for_widget(widget) is None
+    unregister_widget(widget)
+
+
 def test_weakref_gc_clears_entry():
     viewer = _FakeViewer()
     widget = _FakeWidget()
