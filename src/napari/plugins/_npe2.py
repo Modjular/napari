@@ -19,7 +19,6 @@ if TYPE_CHECKING:
     from npe2.manifest.contributions import WriterContribution
     from npe2.plugin_manager import PluginName
     from npe2.types import LayerData, SampleDataCreator, WidgetCreator
-    from qtpy.QtWidgets import QMenu
 
     from napari.layers import Layer
     from napari.types import PathLike, SampleDict
@@ -117,29 +116,6 @@ def get_widget_contribution(
         msg = f'Plugin {plugin_name!r} does not provide a widget named {widget_name!r}. It does provide: {widgets_seen}'
         raise KeyError(msg)
     return None
-
-
-def populate_qmenu(menu: QMenu, menu_key: str):
-    """Populate `menu` from a `menu_key` offering in the manifest."""
-    # TODO: declare somewhere what menu_keys are valid.
-
-    def _wrap(cmd_):
-        def _wrapped(*args):
-            cmd_.exec(args=args)
-
-        return _wrapped
-
-    for item in pm.iter_menu(menu_key):
-        if isinstance(item, contributions.Submenu):
-            subm_contrib = pm.get_submenu(item.submenu)
-            subm = menu.addMenu(subm_contrib.label)
-            assert subm is not None
-            populate_qmenu(subm, subm_contrib.id)
-        else:
-            cmd = pm.get_command(item.command)
-            action = menu.addAction(cmd.title)
-            assert action is not None
-            action.triggered.connect(_wrap(cmd))
 
 
 def file_extensions_string_for_layers(

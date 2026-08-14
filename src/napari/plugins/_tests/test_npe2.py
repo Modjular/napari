@@ -147,13 +147,6 @@ def test_get_widget_contribution(mock_pm: 'TestPluginManager'):
     mock_pm.commands.get.assert_not_called()
 
 
-def test_populate_qmenu(mock_pm: 'TestPluginManager'):
-    menu = MagicMock()
-    _npe2.populate_qmenu(menu, 'napari/file/new_layer')
-    menu.addMenu.assert_called_once_with('My SubMenu')
-    menu.addAction.assert_called_once_with('Hello World')
-
-
 def test_file_extensions_string_for_layers(mock_pm: 'TestPluginManager'):
     layers = [Image(np.random.rand(20, 20), name='ex_img')]
     label, writers = _npe2.file_extensions_string_for_layers(layers)
