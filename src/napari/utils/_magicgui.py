@@ -365,9 +365,11 @@ def add_future_data(gui, future: Future, return_type, _from_tuple=True):
 def find_viewer_ancestor(widget) -> Viewer | None:
     """Return the closest parent Viewer of ``widget``.
 
-    Priority is given to `Viewer` ancestors of ``widget``.
-    `napari.current_viewer()` is called for Widgets without a
-    Viewer ancestor.
+    Priority is given to a `Viewer` registered directly against ``widget``
+    (see `napari.utils._viewer_registry`), then to `Viewer` ancestors of
+    ``widget`` found by walking a Qt-specific widget tree, if Qt is
+    available. `napari.current_viewer()` is called for widgets matched by
+    neither.
 
     Parameters
     ----------
@@ -379,7 +381,17 @@ def find_viewer_ancestor(widget) -> Viewer | None:
     viewer : napari.Viewer or None
         Viewer ancestor if it exists, else `napari.current_viewer()`
     """
-    from napari._qt.widgets.qt_viewer_dock_widget import QtViewerDockWidget
+    from napari.utils._viewer_registry import lookup_viewer_for_widget
+
+    if viewer := lookup_viewer_for_widget(widget):
+        return viewer
+
+    from napari.viewer import current_viewer
+
+    try:
+        from napari._qt.widgets.qt_viewer_dock_widget import QtViewerDockWidget
+    except ImportError:
+        return current_viewer()
 
     # magicgui v0.2.0 widgets are no longer QWidget subclasses, but the native
     # widget is available at widget.native
@@ -387,7 +399,6 @@ def find_viewer_ancestor(widget) -> Viewer | None:
         parent = widget.native.parent()
     else:
         parent = widget.parent()
-    from napari.viewer import current_viewer
 
     while parent:
         if hasattr(parent, '_qt_viewer'):  # QMainWindow
