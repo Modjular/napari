@@ -1002,5 +1002,35 @@ ignore_imports = [
     "napari.layers.shapes._shapes_mouse_bindings -> vispy",
 ]
 
+[[tool.importlinter.contracts]]
+name = "Forbid the vispy rendering backend and canvas protocol layer from importing the Qt frontend"
+type = "forbidden"
+source_modules = ["napari._vispy", "napari._canvas"]
+forbidden_modules = ["napari._qt"]
+ignore_imports = [
+    # None of these are new: _vispy/_canvas both legitimately import core
+    # modules (napari.components, napari.layers, napari.utils, napari.viewer)
+    # that -- for reasons unrelated to rendering -- already had their own,
+    # pre-existing direct imports of napari._qt before this contract existed.
+    # Each is a real, separate piece of Qt-coupling debt (magicgui support,
+    # notebook display, viewer.py's current_viewer(), window.py's eager
+    # backend resolution, ...), out of scope for the canvas-controller seam
+    # this contract is protecting; listed individually, as the vispy-forbidden
+    # contract above does, so a *new* direct _vispy/_canvas -> _qt edge still
+    # breaks this contract instead of hiding behind a broad exception.
+    "napari.components._viewer_key_bindings -> napari._qt.qt_viewer",
+    "napari.utils._magicgui -> napari._qt.qthreading",
+    "napari.utils._magicgui -> napari._qt.widgets.qt_viewer_dock_widget",
+    "napari.utils.notebook_display -> napari._qt.qt_event_loop",
+    "napari.utils.io -> napari._qt.qt_event_loop",
+    "napari.utils._proxies -> napari._qt.utils",
+    # viewer.current_viewer() -- already flagged in the Phase 1 plan as
+    # "leave Qt-only, defer generalizing to Phase 3".
+    "napari.viewer -> napari._qt.qt_main_window",
+    # window.py resolves its backend eagerly at import time (Phase 1); until
+    # that's made lazy, importing napari.window always imports napari._qt.
+    "napari.window -> napari._qt",
+]
+
 [tool.check-wheel-contents]
 toplevel = ["napari", "napari_builtins"]
