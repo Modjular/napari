@@ -1,13 +1,18 @@
 """Protocols describing the renderer-agnostic shape of a napari canvas.
 
 `CanvasProtocol` documents the surface `napari._vispy.canvas.VispyCanvas`
-already provides today, minus the parts that are inherently backend-specific
-(cursor handling, screenshotting, key-event forwarding -- these reach into
-Qt with no vispy-generic equivalent, and are addressed separately) and minus
-`qthrottled`-based mouse-move throttling, which is deliberately never part of
-this contract: throttling a callback is an internal performance detail each
-backend handles its own way (e.g. a web backend would use
-`requestAnimationFrame`), not something a second backend needs to conform to.
+already provides today. `cursor`, `screenshot`, and `forward_key_event` are
+declared but deliberately left backend-defined in what they accept/return
+(`Any`): there is no vispy-generic or Qt-generic equivalent to share for
+setting a native cursor value, grabbing a framebuffer, or forwarding a
+native key event into a renderer's own event system -- each backend
+implements these however its own platform requires, the same way
+`WindowProtocol.screenshot` is just a signature with no shared body.
+`qthrottled`-based mouse-move throttling is, by contrast, permanently
+excluded rather than declared loosely: throttling a callback is an internal
+performance detail each backend handles its own way (e.g. a web backend
+would use `requestAnimationFrame`), not something a second backend needs to
+conform to at all.
 
 `LayerVisualProtocol` and `OverlayVisualProtocol` document the surfaces of
 `napari._vispy.layers.base.VispyBaseLayer` and
@@ -55,6 +60,16 @@ class CanvasProtocol(Protocol):
 
     @size.setter
     def size(self, size: tuple[int, int]) -> None: ...
+
+    @property
+    def cursor(self) -> Any: ...
+
+    @cursor.setter
+    def cursor(self, value: Any) -> None: ...
+
+    def screenshot(self) -> Any: ...
+
+    def forward_key_event(self, event_type: str, event: Any) -> None: ...
 
     def _on_bgcolor_change(self) -> None: ...
 

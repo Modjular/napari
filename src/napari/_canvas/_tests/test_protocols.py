@@ -1,4 +1,6 @@
 import numpy as np
+from qtpy.QtCore import QEvent, Qt
+from qtpy.QtGui import QKeyEvent
 
 from napari._canvas import (
     CanvasProtocol,
@@ -13,6 +15,24 @@ from napari._vispy.overlays.base import VispyBaseOverlay
 def test_vispy_canvas_satisfies_canvas_protocol(qt_viewer):
     assert isinstance(qt_viewer.canvas, VispyCanvas)
     assert isinstance(qt_viewer.canvas, CanvasProtocol)
+
+
+def test_forward_key_event(qt_viewer):
+    """forward_key_event replaces qt_viewer.py/qt_main_window.py's direct
+    reach into VispyCanvas._scene_canvas._backend."""
+    received = []
+    qt_viewer.canvas._scene_canvas.events.key_press.connect(
+        lambda event: received.append(event)
+    )
+
+    qt_viewer.canvas.forward_key_event(
+        'key_press',
+        QKeyEvent(
+            QEvent.Type.KeyPress, Qt.Key.Key_A, Qt.KeyboardModifier.NoModifier
+        ),
+    )
+
+    assert len(received) == 1
 
 
 def test_vispy_image_layer_satisfies_layer_visual_protocol(qt_viewer):

@@ -1205,9 +1205,7 @@ class QtViewer(QSplitter):
         """
         if event is None:
             return
-        self.canvas._scene_canvas._backend._keyEvent(
-            self.canvas._scene_canvas.events.key_press, event
-        )
+        self.canvas.forward_key_event('key_press', event)
         event.accept()
 
     def keyReleaseEvent(self, event: QKeyEvent | None) -> None:
@@ -1220,9 +1218,7 @@ class QtViewer(QSplitter):
         """
         if event is None:
             return
-        self.canvas._scene_canvas._backend._keyEvent(
-            self.canvas._scene_canvas.events.key_release, event
-        )
+        self.canvas.forward_key_event('key_release', event)
         event.accept()
 
     def dragEnterEvent(self, event: QDragEnterEvent | None) -> None:

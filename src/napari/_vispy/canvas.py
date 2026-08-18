@@ -16,6 +16,7 @@ from OpenGL.error import GLError
 from superqt.utils import qthrottled
 from vispy.scene import Grid, SceneCanvas as SceneCanvas_, ViewBox, Widget
 
+from napari._canvas import compute_cursor_spec
 from napari._vispy.camera import VispyCamera
 from napari._vispy.key_bindings import (
     on_key_press as vispy_on_key_press,
@@ -388,38 +389,49 @@ class VispyCanvas:
 
     def _on_cursor(self) -> None:
         """Create a QCursor based on the napari cursor settings and set in Vispy."""
-        cursor = self.viewer.cursor.style
         brush_overlay = self.viewer.canvas.overlays._brush_circle
         brush_overlay.visible = False
 
-        if cursor in {'square', 'circle', 'circle_frozen'}:
-            # Scale size by zoom if needed
-            size = self.viewer.cursor.size
-            if self.viewer.cursor.scaled:
-                size *= self.viewer.scene.camera.zoom
+        spec = compute_cursor_spec(
+            cursor_style=self.viewer.cursor.style,
+            cursor_size=self.viewer.cursor.size,
+            scaled=self.viewer.cursor.scaled,
+            zoom=self.viewer.scene.camera.zoom,
+            canvas_size=self.size,
+        )
 
-            size = int(size)
-
-            # make sure the square fits within the current canvas
-            if (
-                size < 8 or size > (min(*self.size) - 4)
-            ) and cursor != 'circle_frozen':
-                self.cursor = QtCursorVisual['cross'].value
-            elif cursor.startswith('circle'):
-                brush_overlay.size = size
-                if cursor == 'circle_frozen':
-                    self.cursor = QtCursorVisual['standard'].value
-                    brush_overlay.position_is_frozen = True
-                else:
-                    self.cursor = QtCursorVisual.blank()
-                    brush_overlay.position_is_frozen = False
-                brush_overlay.visible = True
-            else:
-                self.cursor = QtCursorVisual.square(size)
-        elif cursor == 'crosshair':
+        if spec.kind == 'cross':
+            self.cursor = QtCursorVisual['cross'].value
+        elif spec.kind == 'circle_frozen':
+            brush_overlay.size = spec.size
+            self.cursor = QtCursorVisual['standard'].value
+            brush_overlay.position_is_frozen = True
+            brush_overlay.visible = True
+        elif spec.kind == 'circle':
+            brush_overlay.size = spec.size
+            self.cursor = QtCursorVisual.blank()
+            brush_overlay.position_is_frozen = False
+            brush_overlay.visible = True
+        elif spec.kind == 'square':
+            self.cursor = QtCursorVisual.square(spec.size)
+        elif spec.kind == 'crosshair':
             self.cursor = QtCursorVisual.crosshair()
         else:
-            self.cursor = QtCursorVisual[cursor].value
+            self.cursor = QtCursorVisual[spec.name].value
+
+    def forward_key_event(self, event_type: str, event: Any) -> None:
+        """Forward a native key event into vispy's own event system.
+
+        `event_type` is `'key_press'` or `'key_release'`. There is no
+        renderer-agnostic key event type to normalize to here -- this
+        reaches into vispy's own (Qt) backend, so it's inherently
+        backend-specific; `CanvasProtocol` declares it as a method each
+        backend implements however its own event system requires, rather
+        than callers reaching past `VispyCanvas` into
+        `self._scene_canvas._backend` directly.
+        """
+        emitter = getattr(self._scene_canvas.events, event_type)
+        self._scene_canvas._backend._keyEvent(emitter, event)
 
     def delete(self) -> None:
         """Schedules the native widget for deletion"""

@@ -578,9 +578,7 @@ class _QtMainWindow(QMainWindow):
         event : qtpy.QtCore.QEvent
             Event from the Qt context.
         """
-        self._qt_viewer.canvas._scene_canvas._backend._keyEvent(
-            self._qt_viewer.canvas._scene_canvas.events.key_press, event
-        )
+        self._qt_viewer.canvas.forward_key_event('key_press', event)
         event.accept()
 
     def keyReleaseEvent(self, event):
@@ -591,9 +589,7 @@ class _QtMainWindow(QMainWindow):
         event : qtpy.QtCore.QEvent
             Event from the Qt context.
         """
-        self._qt_viewer.canvas._scene_canvas._backend._keyEvent(
-            self._qt_viewer.canvas._scene_canvas.events.key_release, event
-        )
+        self._qt_viewer.canvas.forward_key_event('key_release', event)
         event.accept()
 
     def resizeEvent(self, event):
