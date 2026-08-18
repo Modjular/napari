@@ -9,7 +9,18 @@ this contract: throttling a callback is an internal performance detail each
 backend handles its own way (e.g. a web backend would use
 `requestAnimationFrame`), not something a second backend needs to conform to.
 
-A backend does not need to subclass `CanvasProtocol` explicitly, since
+`LayerVisualProtocol` and `OverlayVisualProtocol` document the surfaces of
+`napari._vispy.layers.base.VispyBaseLayer` and
+`napari._vispy.overlays.base.VispyBaseOverlay` respectively -- the per-layer
+and per-overlay visual objects a `CanvasProtocol` implementation creates and
+drives. Conformance is currently verified only against the Image layer path
+(`VispyImageLayer` and the viewer-level overlays that attach to it), per the
+project's "proof of architecture, not shipping product" scope for this phase
+-- see `_canvas/_tests/test_protocols.py`. Other layer types (Labels, Points,
+Shapes, Surface, Vectors, Tracks) already subclass `VispyBaseLayer` and so
+structurally satisfy `LayerVisualProtocol` too, but that isn't asserted here.
+
+A backend does not need to subclass these Protocols explicitly, since
 `Protocol` conformance is structural -- this mirrors `napari.window`'s
 `WindowProtocol` precedent.
 """
@@ -22,7 +33,7 @@ if TYPE_CHECKING:
     from napari.components import ViewerModel
     from napari.layers import Layer
 
-__all__ = ['CanvasProtocol']
+__all__ = ['CanvasProtocol', 'LayerVisualProtocol', 'OverlayVisualProtocol']
 
 
 @runtime_checkable
@@ -104,3 +115,78 @@ class CanvasProtocol(Protocol):
     def _resume_scene_graph_update(self) -> None: ...
 
     def font_info(self) -> Any: ...
+
+
+@runtime_checkable
+class LayerVisualProtocol(Protocol):
+    """The renderer-agnostic surface of a single layer's visual object.
+
+    Mirrors `napari._vispy.layers.base.VispyBaseLayer`: 12 event
+    connections funnel into ~11 handlers here (note all five transform
+    events -- scale, translate, rotate, shear, affine -- funnel into the
+    single `_on_matrix_change`; there is no `_on_scale_change`).
+    """
+
+    layer: Any
+
+    @property
+    def world_units(self) -> Any: ...
+
+    @world_units.setter
+    def world_units(self, value: Any) -> None: ...
+
+    @property
+    def translate(self) -> Any: ...
+
+    @property
+    def scale(self) -> Any: ...
+
+    @property
+    def order(self) -> int: ...
+
+    @order.setter
+    def order(self, order: int) -> None: ...
+
+    def _on_data_change(self) -> None: ...
+
+    def _on_refresh_change(self) -> None: ...
+
+    def _on_visible_change(self) -> None: ...
+
+    def _on_opacity_change(self) -> None: ...
+
+    def _on_blending_change(self, event: Any = None) -> None: ...
+
+    def _on_matrix_change(self) -> None: ...
+
+    def _on_experimental_clipping_planes_change(self) -> None: ...
+
+    def _on_camera_move(self, event: Any = None) -> None: ...
+
+    def reset(self) -> None: ...
+
+    def _on_poll(self, event: Any = None) -> None: ...
+
+    def close(self) -> None: ...
+
+
+@runtime_checkable
+class OverlayVisualProtocol(Protocol):
+    """The renderer-agnostic surface of a single overlay's visual object.
+
+    Mirrors `napari._vispy.overlays.base.VispyBaseOverlay`, the base class
+    shared by every overlay visual (scale bar, text, axes, bounding box,
+    colorbar, and the canvas/scene-space subclasses built on top of it).
+    """
+
+    overlay: Any
+
+    def _on_visible_change(self) -> None: ...
+
+    def _on_opacity_change(self) -> None: ...
+
+    def _on_blending_change(self) -> None: ...
+
+    def reset(self) -> None: ...
+
+    def close(self) -> None: ...

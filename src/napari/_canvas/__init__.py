@@ -1,3 +1,7 @@
-from napari._canvas._protocols import CanvasProtocol
+from napari._canvas._protocols import (
+    CanvasProtocol,
+    LayerVisualProtocol,
+    OverlayVisualProtocol,
+)
 
-__all__ = ['CanvasProtocol']
+__all__ = ['CanvasProtocol', 'LayerVisualProtocol', 'OverlayVisualProtocol']
