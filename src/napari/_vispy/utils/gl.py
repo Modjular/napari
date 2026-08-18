@@ -4,21 +4,22 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING
 
-import numpy as np
-import numpy.typing as npt
 from vispy.app import Canvas
 from vispy.gloo import gl
 from vispy.gloo.context import get_current_canvas
 
+from napari._canvas._texture import fix_data_dtype, texture_dtypes
+
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-texture_dtypes = [
-    np.dtype(np.uint8),
-    np.dtype(np.uint16),
-    np.dtype(np.float32),
+__all__ = [
+    'fix_data_dtype',
+    'get_gl_extensions',
+    'get_max_texture_sizes',
+    'texture_dtypes',
 ]
 
 
@@ -77,45 +78,6 @@ def get_max_texture_sizes() -> tuple[int, int]:
         max_size_3d = None
 
     return max_size_2d, max_size_3d
-
-
-def fix_data_dtype(data: npt.NDArray) -> npt.NDArray:
-    """Makes sure the dtype of the data is accetpable to vispy.
-
-    Acceptable types are int8, uint8, int16, uint16, float32.
-
-    Parameters
-    ----------
-    data : np.ndarray
-        Data that will need to be of right type.
-
-    Returns
-    -------
-    np.ndarray
-        Data that is of right type and will be passed to vispy.
-    """
-
-    dtype = np.dtype(data.dtype)
-    if dtype in texture_dtypes:
-        return data
-
-    try:
-        dtype_ = cast(
-            'type[np.unsignedinteger[Any] | np.floating[Any]]',
-            {
-                'i': np.float32,
-                'f': np.float32,
-                'u': np.uint16,
-                'b': np.uint8,
-            }[dtype.kind],
-        )
-        if dtype_ == np.uint16 and dtype.itemsize > 2:
-            dtype_ = np.float32
-    except KeyError as e:  # not an int or float
-        raise TypeError(
-            f'type {dtype} not allowed for texture; must be one of {set(texture_dtypes)}'
-        ) from e
-    return data.astype(dtype_)
 
 
 # blend_func parameters are multiplying:
