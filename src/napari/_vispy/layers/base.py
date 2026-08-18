@@ -7,6 +7,7 @@ import numpy as np
 import pint
 from vispy.visuals.transforms import MatrixTransform
 
+from napari._canvas import compute_layer_transforms
 from napari._vispy.utils.gl import BLENDING_MODES, get_max_texture_sizes
 from napari.layers import Layer
 from napari.utils.events import disconnect_events
@@ -201,104 +202,23 @@ class VispyBaseLayer(ABC, Generic[_L]):
         self.node.update()
 
     def _on_matrix_change(self):
-        dims_displayed = self.layer._slice_input.displayed
         # If the layer's dimensionality changed (e.g., data swapped from 2D
         # to 3D), _world_to_layer_units_scale reflects the old ndim
         # and cannot be indexed with the new dims_displayed values.  Refresh
         # both cached unit tracking fields to match the current layer.
+        # This is a stateful cache-invalidation concern specific to this
+        # visual instance, so it stays here rather than in
+        # compute_layer_transforms, which only ever reads an
+        # already-current world_to_layer_units_scale.
         if len(self._world_to_layer_units_scale) != self.layer.ndim:
             self._world_units = self.layer.units
             self._world_to_layer_units_scale = (1,) * self.layer.ndim
 
-        # mypy: self.layer._transforms.simplified cannot be None
-        transform = self.layer._transforms.simplified.set_slice(dims_displayed)
-        # convert NumPy axis ordering to VisPy axis ordering
-        # by reversing the axes order and flipping the linear
-        # matrix
-        units_scale = [
-            self._world_to_layer_units_scale[x] for x in dims_displayed
-        ][::-1]
-        translate = transform.translate[::-1] * units_scale
-        matrix = transform.linear_matrix[::-1, ::-1].T * units_scale
-
-        # The following accounts for the offset between samples at different
-        # resolutions of 3D multi-scale array-like layers (e.g. images).
-        # The 2D case is handled differently because that has more complex support
-        # (multiple levels, partial field-of-view) that also currently interacts
-        # with how pixels are centered (see further below).
-        if (
-            self._array_like
-            and self.layer._slice_input.ndisplay == 3
-            and self.layer.multiscale
-            and hasattr(self.layer, 'downsample_factors')
-        ):
-            # Use the rendered level's downsample factor: 3D shows the
-            # lowest level by default, but locked_data_level (and 3D
-            # sub-volume tiles) can select any level. The data-space
-            # offset is mapped to world units with the layer scale.
-            layer_scale = np.asarray(self.layer.scale)[dims_displayed][::-1]
-            data_level: int = getattr(self.layer, 'data_level', 0)
-            # grab the downscale factors for this level
-            level_factors = self.layer.downsample_factors[data_level]
-            # keep only the displayed factors, then invert to match VisPy
-            # axis ordering
-            displayed_downsample = level_factors[dims_displayed][::-1]
-            # finally, adjust translate by half a pixel per downscale level
-            translate += (displayed_downsample - 1) / 2 * layer_scale
-
-        # Embed in the top left corner of a 4x4 affine matrix
-        affine_matrix = np.eye(4)
-        affine_matrix[: matrix.shape[0], : matrix.shape[1]] = matrix
-        affine_matrix[-1, : len(translate)] = translate
-
-        child_offset = np.zeros(len(dims_displayed))
-
-        if (
-            self._array_like
-            and self.layer._slice_input.ndisplay == 3
-            and self.layer.multiscale
-        ):
-            # In 3D, sub-volume tiles have nonzero corner_pixels[0].
-            # The volume node transform positions the tile correctly,
-            # but child nodes (bounding box overlay) should not inherit
-            # this offset — undo it so overlays stay at the full data
-            # extent.
-            cp0 = self.layer.corner_pixels[0][dims_displayed][::-1]
-            if np.any(cp0 != 0):
-                child_offset = -cp0.astype(float)
-
-        if self._array_like and self.layer._slice_input.ndisplay == 2:
-            # Perform pixel offset to shift origin from top left corner
-            # of pixel to center of pixel.
-            # Note this offset is only required for array like data in
-            # 2D.
-            offset_matrix = self.layer._data_to_world.set_slice(
-                dims_displayed
-            ).linear_matrix
-            offset = -offset_matrix @ np.ones(offset_matrix.shape[1]) / 2
-            # Convert NumPy axis ordering to VisPy axis ordering
-            # and embed in full affine matrix
-            affine_offset = np.eye(4)
-            affine_offset[-1, : len(offset)] = offset[::-1] * units_scale
-            affine_matrix = affine_matrix @ affine_offset
-            if self.layer.multiscale:
-                # For performance reasons, when displaying multiscale images,
-                # only the part of the data that is visible on the canvas is
-                # sent as a texture to the GPU. This means that the texture
-                # gets an additional transform, to position the texture
-                # correctly offset from the origin of the full data. However,
-                # child nodes, which include overlays such as bounding boxes,
-                # should *not* receive this offset, so we undo it here:
-                child_offset = (
-                    np.ones(offset_matrix.shape[1]) / 2
-                    - self.layer.corner_pixels[0][dims_displayed][::-1]
-                )
-            else:
-                child_offset = np.full(offset_matrix.shape[1], 1 / 2)
+        affine_matrix, child_matrix = compute_layer_transforms(
+            self.layer, self._world_to_layer_units_scale, self._array_like
+        )
         self._master_transform.matrix = affine_matrix
 
-        child_matrix = np.eye(4)
-        child_matrix[-1, : len(child_offset)] = child_offset
         for child in self.node.children:
             child.transform.matrix = child_matrix
 
