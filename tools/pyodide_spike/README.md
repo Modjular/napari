@@ -105,46 +105,39 @@ own top level, so a headless `ViewerModel` session can have `magicgui` installed
 without tripping this.
 
 **The headline finding — a real blocker invisible to wheel-metadata analysis:**
-`napari/settings/_application.py:7` does an unconditional
+`napari/settings/_application.py:7` did an unconditional
 `from psutil import virtual_memory`. **`psutil` has no Pyodide wheel at all** —
 confirmed absent from this Pyodide build's `pyodide-lock.json` package index
-(354 built-in packages, `psutil`/`tornado`/`pyzmq` all absent). This blocks
+(354 built-in packages, `psutil`/`tornado`/`pyzmq` all absent). This blocked
 `from napari.components import ViewerModel` outright:
 
 ```
 ModuleNotFoundError: No module named 'psutil'
 ```
 
-This is genuinely new information: the handoff doc's §8 says "psutil is already
-handled (fallback + `sys_platform != 'emscripten'` marker)" — **but that fix
-(`54db16d0e`, "Make psutil optional behind `total_memory_bytes()`") lives on the
-sibling `modjular/refactor/decouple-core-from-qt` branch, not on this branch's
-`decouple-core-from-vispy` lineage.** `pyproject.toml` on *this* branch still
-declares `"psutil>=5.9.4"` with no environment marker. The handoff's own
-inference was correct about the *eventual* state, but conflated which branch it
-lands on — a real trap for whoever merges these branches later, since Phase 0
-success looked, from wheel metadata alone, like it only depended on the vispy
-branch.
+This was genuinely new information: the handoff doc's §8 said "psutil is
+already handled (fallback + `sys_platform != 'emscripten'` marker)" — **but
+that fix (`54db16d0e`, "Make psutil optional behind `total_memory_bytes()`")
+lived on the sibling `modjular/refactor/decouple-core-from-qt` branch, not on
+this branch's `decouple-core-from-vispy` lineage.** The handoff's own
+inference was correct about the *eventual* state, but conflated which branch
+it landed on — a real trap this spike caught before it bit whoever merged
+these branches later.
 
-`test_stage_b_local_wheel_still_blocked_by_psutil` asserts on this exact,
-current failure — it is expected to keep failing (in the "this is what's
-documented" sense — the test itself passes by asserting the failure text) until
-the psutil fix is merged into this branch's lineage too.
-
-### Stage C — with both fixes combined (manually verified, not an automated test)
-
-To confirm the *combination* actually works end-to-end rather than assuming it
-from the two findings above, `54db16d0e` was cherry-picked from
-`modjular/refactor/decouple-core-from-qt` onto a disposable scratch worktree
-(`git worktree add ... --detach`, cherry-pick, build wheel, test, then
-`git worktree remove --force` — this branch's own commit history was never
-touched). Result, with a `builtins.__import__` guard actively raising
-`ModuleNotFoundError` for any `vispy`/`vispy.*` import (mirroring the vispy
-branch's own acceptance test in the handoff doc §3):
+Confirmed by manually cherry-picking `54db16d0e` onto a disposable scratch
+worktree (`git worktree add ... --detach`, cherry-pick, build wheel, test,
+`git worktree remove --force` — this branch's history was never touched) and
+re-running: `ViewerModel()`, `add_image()`, and `add_shapes()` all executed
+correctly with `vispy` actively blocked via a `builtins.__import__` guard,
+confirming the *combination* of both fixes actually works end-to-end, not
+just each in isolation. `54db16d0e` has since been cherry-picked onto this
+branch for real, so `test_stage_b_local_wheel_viewer_model_works` now asserts
+that success directly — no scratch worktree, no manual step, just
+`git log` showing the commit and a green test:
 
 ```
 local napari wheel (deps=False): OK
-core deps installed
+core deps installed (vispy, napari-console, psutil skipped)
 import napari (vispy BLOCKED): OK
 ViewerModel(): OK
 add_image(colormap=viridis): OK
@@ -152,27 +145,19 @@ add_shapes(polygon): OK
 vispy in sys.modules: False
 ```
 
-**This is the spike's success criterion, met:** `ViewerModel`, `add_image`, and
-`add_shapes` (exercising the vendored `viridis` colormap and the vendored
-concave-polygon `Triangulation`, per the vispy branch's own acceptance test) all
-execute correctly inside a real Pyodide/Node sandbox, with `vispy` confirmed
-never imported. This is not automated as a committed test because it requires
-cherry-picking a commit from a different branch by hash, which would be fragile
-to pin permanently — it's recorded here as a one-time manual verification. It
-should be re-run once both branches are actually merged, at which point it can
-become the automated `test_stage_b_...` case (replacing the current
-"expected failure" assertion with a success assertion).
+`ViewerModel`, `add_image`, and `add_shapes` (exercising the vendored
+`viridis` colormap and the vendored concave-polygon `Triangulation`, per the
+vispy branch's own acceptance test) execute correctly inside a real
+Pyodide/Node sandbox, with `vispy` confirmed never imported.
 
 ## Net conclusion
 
-The whole roadmap's foundational premise — a vispy-free napari core can actually
-run inside Pyodide — is now **experimentally confirmed**, not just inferred. The
-remaining gap before Phase 0 is fully closed on a single branch is small and
-mechanical: merge or cherry-pick `54db16d0e` (psutil-optional) from
-`decouple-core-from-qt` into whatever branch eventually ships this. No other
-surprises turned up in Stage B/C beyond magicgui's hard-import status and the
-tightened understanding of the qtpy/superqt/napari-svg situations documented
-above — no npe2 entry-point discovery weirdness, no dask threading issues, no
-single-threaded/no-GIL wasm quirks were observed in the paths this spike
-exercised (construction + `add_image` + `add_shapes` only; broader plugin
-discovery and dask-array-backed layers are untested by this spike).
+The whole roadmap's foundational premise — a vispy-free, psutil-free napari
+core can actually run inside Pyodide — is now **experimentally confirmed on
+this branch**, not just inferred, and not dependent on a second branch merging
+first. No other surprises turned up beyond magicgui's hard-import status and
+the tightened understanding of the qtpy/superqt/napari-svg situations
+documented above — no npe2 entry-point discovery weirdness, no dask threading
+issues, no single-threaded/no-GIL wasm quirks were observed in the paths this
+spike exercised (construction + `add_image` + `add_shapes` only; broader
+plugin discovery and dask-array-backed layers are untested by this spike).

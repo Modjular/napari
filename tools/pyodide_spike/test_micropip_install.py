@@ -18,24 +18,25 @@ Run (from the repo root, with napari's own dev venv active)::
     python -m pytest tools/pyodide_spike/test_micropip_install.py \\
         --dist-dir=tools/pyodide_spike/node_modules/pyodide --rt=node -v -s
 
-Three stages, recorded in full in README.md:
+Two stages, recorded in full in README.md:
 
 * **Stage A** -- plain `micropip.install("napari")` against real PyPI.
   Expected and confirmed to fail: napari's PyPI release still depends on
   `vispy`, which has no Emscripten/Pyodide wheel.
-* **Stage B** -- a wheel built from *this branch* (core already vispy-free)
-  installed with `deps=False`, plus a curated set of dependencies that do
-  have Pyodide wheels, skipping `vispy` and `napari-console`. This is where
-  the spike earns its keep: it surfaces a blocker invisible to static
-  analysis -- `psutil` (imported unconditionally by
-  `napari/settings/_application.py`) has no Pyodide wheel either, and the
-  fix for that (`54db16d0e` "Make psutil optional behind
-  total_memory_bytes()") lives on the *sibling* `decouple-core-from-qt`
-  branch, not this one.
-* **Stage C** (not automated here -- see README) -- manually verified by
-  cherry-picking `54db16d0e` onto a scratch worktree: with both fixes
-  combined, `ViewerModel()`, `add_image()`, and `add_shapes()` all succeed
-  inside real Pyodide with `vispy` import actively blocked.
+* **Stage B** -- a wheel built from *this branch* (core vispy-free, and now
+  psutil-free too -- see below) installed with `deps=False`, plus a curated
+  set of dependencies that do have Pyodide wheels, skipping `vispy` and
+  `napari-console`. Constructs a real `ViewerModel`, adds an image and a
+  concave-polygon shape, with `vispy` import actively blocked via a
+  `builtins.__import__` guard the whole time.
+
+  This originally stopped short of a working `ViewerModel`: `psutil` has no
+  Pyodide wheel either, and `napari/settings/_application.py` did an
+  unconditional `from psutil import virtual_memory`. That's what commit
+  `54db16d0e` ("Make psutil optional behind total_memory_bytes()", cherry-picked
+  here from the sibling `decouple-core-from-qt` branch) fixes -- confirmed by
+  manually cherry-picking it onto a scratch worktree before it was merged onto
+  this branch for real; see README.md for that verification note.
 """
 
 import subprocess
@@ -129,13 +130,14 @@ result
     assert 'vispy' in result
 
 
-def test_stage_b_local_wheel_still_blocked_by_psutil(selenium, napari_wheel):
-    """This branch's core is vispy-free, but napari/settings/_application.py
-    still does an unconditional `from psutil import virtual_memory`, and
-    psutil has no Pyodide wheel (confirmed absent from pyodide-lock.json's
-    354-package index). This is expected to fail on THIS branch as checked
-    out -- see README.md Stage C for confirmation that cherry-picking
-    `54db16d0e` from `decouple-core-from-qt` resolves it.
+def test_stage_b_local_wheel_viewer_model_works(selenium, napari_wheel):
+    """A wheel built from this branch, with vispy blocked at import time,
+    actually constructs a ViewerModel and adds layers inside real Pyodide.
+
+    Exercises the vendored `viridis` colormap (`add_image`) and the vendored
+    concave-polygon `Triangulation` (`add_shapes`) -- the same two vispy-free
+    code paths the `decouple-core-from-vispy` branch's own acceptance test
+    checks, just run for real instead of with a mocked import guard on CPython.
     """
     code = f"""
 import micropip
@@ -148,18 +150,33 @@ for dep in {STAGE_B_DEPS!r}:
     await micropip.install(dep)
 log.append("core deps installed (vispy, napari-console, psutil skipped)")
 
-try:
-    from napari.components import ViewerModel
-    log.append("UNEXPECTED SUCCESS: ViewerModel import worked without psutil")
-except ModuleNotFoundError as e:
-    log.append(f"EXPECTED FAILURE: {{type(e).__name__}}: {{e}}")
+import sys, builtins
+real_import = builtins.__import__
+def guard(name, *a, **k):
+    if name == "vispy" or name.startswith("vispy."):
+        raise ModuleNotFoundError(f"No module named '{{name}}' (blocked by spike)")
+    return real_import(name, *a, **k)
+builtins.__import__ = guard
+
+import napari
+log.append("import napari (vispy BLOCKED): OK")
+
+import numpy as np
+from napari.components import ViewerModel
+v = ViewerModel()
+log.append("ViewerModel(): OK")
+v.add_image(np.random.rand(4, 16, 16), colormap='viridis')
+log.append("add_image(colormap=viridis): OK")
+v.add_shapes(
+    [np.array([[0., 0.], [0., 9.], [9., 9.], [3., 4.], [9., 0.]])],
+    shape_type='polygon',
+)
+log.append("add_shapes(polygon): OK")
+log.append(f"vispy in sys.modules: {{'vispy' in sys.modules}}")
 
 "\\n".join(log)
 """
     result = selenium.run_async(code)
     print(f'\n=== STAGE B RESULT ===\n{result}\n=== END ===')
-    assert 'core deps installed' in result
-    assert (
-        "EXPECTED FAILURE: ModuleNotFoundError: No module named 'psutil'"
-        in result
-    )
+    assert 'add_shapes(polygon): OK' in result
+    assert 'vispy in sys.modules: False' in result
