@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from napari._canvas import VisualRegistry
 from napari._vispy.layers.base import VispyBaseLayer
 from napari._vispy.layers.image import VispyImageLayer
 from napari._vispy.layers.labels import VispyLabelsLayer
@@ -64,7 +65,13 @@ from napari.layers import (
 if TYPE_CHECKING:
     from vispy.scene.widgets.viewbox import ViewBox
 
-layer_to_visual: dict[type[Layer], type[VispyBaseLayer]] = {
+# The dispatch mechanism itself (find the closest registered parent class of
+# a model object's type) lives in napari._canvas.VisualRegistry, since it has
+# nothing to do with vispy -- only these entries, naming vispy's own visual
+# classes, are backend-specific.
+visual_registry = VisualRegistry()
+
+for _layer_cls, _visual_cls in {
     Image: VispyImageLayer,
     Labels: VispyLabelsLayer,
     Points: VispyPointsLayer,
@@ -72,10 +79,10 @@ layer_to_visual: dict[type[Layer], type[VispyBaseLayer]] = {
     Surface: VispySurfaceLayer,
     Vectors: VispyVectorsLayer,
     Tracks: VispyTracksLayer,
-}
+}.items():
+    visual_registry.register_layer_visual(_layer_cls, _visual_cls)
 
-
-overlay_to_visual: dict[type[Overlay], type[VispyBaseOverlay]] = {
+for _overlay_cls, _overlay_visual_cls in {
     ScaleBarOverlay: VispyScaleBarOverlay,
     TextOverlay: VispyTextOverlay,
     SceneAxesOverlay: VispySceneAxesOverlay,
@@ -90,7 +97,10 @@ overlay_to_visual: dict[type[Overlay], type[VispyBaseOverlay]] = {
     LayerNameOverlay: VispyLayerNameOverlay,
     CurrentSliceOverlay: VispyCurrentSliceOverlay,
     ColorBarOverlay: VispyColorBarOverlay,
-}
+}.items():
+    visual_registry.register_overlay_visual(_overlay_cls, _overlay_visual_cls)
+
+del _layer_cls, _visual_cls, _overlay_cls, _overlay_visual_cls
 
 
 def create_vispy_layer(
@@ -108,14 +118,7 @@ def create_vispy_layer(
     visual : VispyBaseLayer
         Vispy layer
     """
-    # find the closest parent class, to maintain behaviour from #2757
-    for cls in layer.__class__.mro():
-        if cls in layer_to_visual:
-            return layer_to_visual[cls](layer, *args, **kwargs)
-
-    raise TypeError(
-        f'Could not find VispyLayer for layer of type {type(layer)}'
-    )
+    return visual_registry.create_layer_visual(layer, *args, **kwargs)
 
 
 def create_vispy_overlay(overlay: Overlay, **kwargs) -> VispyBaseOverlay:
@@ -132,13 +135,7 @@ def create_vispy_overlay(overlay: Overlay, **kwargs) -> VispyBaseOverlay:
     visual : VispyBaseOverlay
         Vispy overlay
     """
-    for cls in overlay.__class__.mro():
-        if cls in overlay_to_visual:
-            return overlay_to_visual[cls](overlay=overlay, **kwargs)
-
-    raise TypeError(
-        f'Could not find VispyOverlay for overlay of type {type(overlay)}'
-    )
+    return visual_registry.create_overlay_visual(overlay, **kwargs)
 
 
 def get_view_direction_in_scene_coordinates(

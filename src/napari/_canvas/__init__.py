@@ -3,5 +3,11 @@ from napari._canvas._protocols import (
     LayerVisualProtocol,
     OverlayVisualProtocol,
 )
+from napari._canvas._registry import VisualRegistry
 
-__all__ = ['CanvasProtocol', 'LayerVisualProtocol', 'OverlayVisualProtocol']
+__all__ = [
+    'CanvasProtocol',
+    'LayerVisualProtocol',
+    'OverlayVisualProtocol',
+    'VisualRegistry',
+]
